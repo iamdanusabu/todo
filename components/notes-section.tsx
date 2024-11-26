@@ -32,15 +32,26 @@ interface NotesSectionProps {
 
 export function NotesSection({ notes, onAddNote, onEditNote, onDeleteNote }: NotesSectionProps) {
   const [isAddingNote, setIsAddingNote] = useState(false)
-  const [newNote, setNewNote] = useState({ title: "", description: "", tags: "" })
+  const [newNote, setNewNote] = useState({ 
+    title: "", 
+    description: "", 
+    tags: "" 
+  })
   const [editingNote, setEditingNote] = useState<Note | null>(null)
+
+  const processTags = (tagsInput: string): string[] => {
+    return tagsInput
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag !== '')
+  }
 
   const handleAddNote = () => {
     if (newNote.title.trim() && newNote.description.trim()) {
       onAddNote({
         title: newNote.title,
         description: newNote.description,
-        tags: newNote.tags.split(',').map(tag => tag.trim()).filter(Boolean)
+        tags: processTags(newNote.tags)
       })
       setNewNote({ title: "", description: "", tags: "" })
       setIsAddingNote(false)
@@ -52,9 +63,7 @@ export function NotesSection({ notes, onAddNote, onEditNote, onDeleteNote }: Not
       onEditNote(editingNote.id, {
         title: editingNote.title,
         description: editingNote.description,
-        tags: typeof editingNote.tags === 'string' 
-          ? editingNote.tags.split(',').map(tag => tag.trim()).filter(Boolean)
-          : editingNote.tags
+        tags: processTags(editingNote.tags.join(','))
       })
       setEditingNote(null)
     }
@@ -176,8 +185,14 @@ export function NotesSection({ notes, onAddNote, onEditNote, onDeleteNote }: Not
               <div className="space-y-2">
                 <Input
                   placeholder="Tags (comma-separated)"
-                  value={Array.isArray(editingNote.tags) ? editingNote.tags.join(', ') : editingNote.tags}
-                  onChange={(e) => setEditingNote({ ...editingNote, tags: e.target.value })}
+                  value={editingNote.tags.join(', ')}
+                  onChange={(e) => setEditingNote({ 
+                    ...editingNote, 
+                    tags: e.target.value
+                      .split(',')
+                      .map(tag => tag.trim())
+                      .filter(tag => tag !== '')
+                  })}
                 />
               </div>
               <Button onClick={handleEditNote} className="w-full">
@@ -190,4 +205,3 @@ export function NotesSection({ notes, onAddNote, onEditNote, onDeleteNote }: Not
     </div>
   )
 }
-
