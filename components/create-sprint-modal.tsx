@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,25 +11,46 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Sprint, Task } from "@/types"
 
 interface CreateSprintModalProps {
   selectedTasks: Task[]
   onCreateSprint: (sprint: Omit<Sprint, 'id' | 'status'>) => void
+  onUpdateSprint: (sprintId: string, newTasks: Task[]) => void
+  existingSprints: Sprint[]
 }
 
-export function CreateSprintModal({ selectedTasks, onCreateSprint }: CreateSprintModalProps) {
+export function CreateSprintModal({ selectedTasks, onCreateSprint, onUpdateSprint, existingSprints }: CreateSprintModalProps) {
+  const [isOpen, setIsOpen] = useState(false)
   const [sprintName, setSprintName] = useState("")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-  const [isToday, setIsToday] = useState(false)
+  const [selectedSprintId, setSelectedSprintId] = useState("new")
 
-  const handleCreateSprint = () => {
-    if (sprintName && (isToday || (startDate && endDate))) {
+  useEffect(() => {
+    if (!isOpen) {
+      setSprintName("")
+      setStartDate("")
+      setEndDate("")
+      setSelectedSprintId("new")
+    }
+  }, [isOpen])
+
+  const handleCreateOrUpdateSprint = () => {
+    if (selectedSprintId !== "new") {
+      onUpdateSprint(selectedSprintId, selectedTasks)
+    } else if (sprintName && startDate && endDate) {
       const newSprint: Omit<Sprint, 'id' | 'status'> = {
         name: sprintName,
-        startDate: isToday ? new Date().toISOString() : startDate,
-        endDate: isToday ? new Date().toISOString() : endDate,
+        startDate,
+        endDate,
         tasks: {
           Open: selectedTasks,
           "In Progress": [],
@@ -38,43 +59,50 @@ export function CreateSprintModal({ selectedTasks, onCreateSprint }: CreateSprin
       }
       onCreateSprint(newSprint)
     }
+    setIsOpen(false)
   }
 
   return (
-    <Dialog>
+    <Dialog open={isOpen} onOpenChange={setIsOpen}>
       <DialogTrigger asChild>
         <Button>Start Sprint</Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Create New Sprint</DialogTitle>
+          <DialogTitle>Create New Sprint or Add to Existing</DialogTitle>
         </DialogHeader>
         <div className="grid gap-4 py-4">
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="sprint-name" className="text-right">
-              Sprint Name
+            <Label htmlFor="sprint-select" className="text-right">
+              Sprint
             </Label>
-            <Input
-              id="sprint-name"
-              value={sprintName}
-              onChange={(e) => setSprintName(e.target.value)}
-              className="col-span-3"
-            />
+            <Select value={selectedSprintId} onValueChange={setSelectedSprintId}>
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="Select sprint" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="new">Create New Sprint</SelectItem>
+                {existingSprints.map((sprint) => (
+                  <SelectItem key={sprint.id} value={sprint.id}>
+                    {sprint.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="today-sprint" className="text-right">
-              Today Sprint
-            </Label>
-            <Input
-              id="today-sprint"
-              type="checkbox"
-              checked={isToday}
-              onChange={(e) => setIsToday(e.target.checked)}
-              className="col-span-3"
-            />
-          </div>
-          {!isToday && (
+          {selectedSprintId === "new" && (
             <>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="sprint-name" className="text-right">
+                  Sprint Name
+                </Label>
+                <Input
+                  id="sprint-name"
+                  value={sprintName}
+                  onChange={(e) => setSprintName(e.target.value)}
+                  className="col-span-3"
+                />
+              </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="start-date" className="text-right">
                   Start Date
@@ -102,7 +130,9 @@ export function CreateSprintModal({ selectedTasks, onCreateSprint }: CreateSprin
             </>
           )}
         </div>
-        <Button onClick={handleCreateSprint}>Create Sprint</Button>
+        <Button onClick={handleCreateOrUpdateSprint}>
+          {selectedSprintId !== "new" ? "Add to Sprint" : "Create Sprint"}
+        </Button>
       </DialogContent>
     </Dialog>
   )

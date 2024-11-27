@@ -13,7 +13,7 @@ import {
 import { Priority, Task } from "@/types"
 
 interface HeaderProps {
-  onAddTask: (task: Omit<Task, 'id'>) => void
+  onAddTask: (task: Omit<Task, 'id' | 'completed'>) => void
 }
 
 export function Header({ onAddTask }: HeaderProps) {
@@ -33,7 +33,6 @@ export function Header({ onAddTask }: HeaderProps) {
         description: task,
         priority,
         createdAt: new Date().toISOString(),
-        completed: false
       })
       setTask("")
       setPriority("Medium")

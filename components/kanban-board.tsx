@@ -4,7 +4,7 @@ import React, { useState } from "react"
 import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { MoreVertical, X } from 'lucide-react'
+import { MoreVertical, X, ArrowLeft, Trash } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,15 +13,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Sprint, Task, Column } from "@/types"
+import { Sprint, Task, Column, SprintStatus } from "@/types"
 
 interface KanbanBoardProps {
   sprint: Sprint
   onUpdateSprint: (updatedSprint: Sprint) => void
   onDeleteSprint: (sprintId: string) => void
+  onSendTaskToPool: (taskId: string) => void
+  onDeleteTask: (taskId: string) => void
 }
 
-export function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint }: KanbanBoardProps) {
+export default function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint, onSendTaskToPool, onDeleteTask }: KanbanBoardProps) {
   const [isExpanded, setIsExpanded] = useState(true)
 
   const onDragEnd = (result: DropResult) => {
@@ -51,7 +53,26 @@ export function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint }: KanbanBo
       newSprint.tasks[destColumn] = destTasks
     }
 
-    onUpdateSprint(newSprint)
+    const updatedSprint = {
+      ...newSprint,
+      status: calculateSprintStatus(newSprint)
+    };
+    onUpdateSprint(updatedSprint)
+  }
+
+  const calculateSprintStatus = (sprint: Sprint): SprintStatus => {
+    const allTasks = Object.values(sprint.tasks).flat();
+    const allTasksDone = allTasks.every(task => sprint.tasks.Done.includes(task));
+    const currentDate = new Date();
+    const endDate = new Date(sprint.endDate);
+
+    if (allTasksDone) {
+      return 'Completed';
+    } else if (currentDate > endDate) {
+      return 'Out of Track';
+    } else {
+      return 'On Track';
+    }
   }
 
   const getColumnColor = (column: Column) => {
@@ -78,6 +99,19 @@ export function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint }: KanbanBo
     return colors[priority]
   }
 
+  const getStatusColor = (status: SprintStatus) => {
+    switch (status) {
+      case 'Completed':
+        return 'border-green-500 text-green-600'
+      case 'Out of Track':
+        return 'border-red-500 text-red-600'
+      case 'On Track':
+        return 'border-yellow-500 text-yellow-600'
+      default:
+        return 'border-gray-500 text-gray-600'
+    }
+  }
+
   return (
     <Card className="mb-6">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -85,6 +119,9 @@ export function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint }: KanbanBo
           Sprint: {sprint.name} ({new Date(sprint.startDate).toLocaleDateString()} - {new Date(sprint.endDate).toLocaleDateString()})
         </CardTitle>
         <div className="flex items-center space-x-2">
+          <p className={`text-sm px-2 py-1 rounded-full border ${getStatusColor(sprint.status)}`}>
+            {sprint.status}
+          </p>
           <Button
             variant="ghost"
             size="sm"
@@ -130,7 +167,27 @@ export function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint }: KanbanBo
                                 {...provided.dragHandleProps}
                                 className={`bg-white p-2 rounded shadow-sm ${snapshot.isDragging ? 'opacity-50' : ''}`}
                               >
-                                <p className="text-sm">{task.description}</p>
+                                <div className="flex justify-between items-start">
+                                  <p className="text-sm">{task.description}</p>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <Button variant="ghost" className="h-8 w-8 p-0">
+                                        <span className="sr-only">Open menu</span>
+                                        <MoreVertical className="h-4 w-4" />
+                                      </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => onSendTaskToPool(task.id)}>
+                                        <ArrowLeft className="mr-2 h-4 w-4" />
+                                        <span>Send to Task Pool</span>
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem onClick={() => onDeleteTask(task.id)}>
+                                        <Trash className="mr-2 h-4 w-4" />
+                                        <span>Delete Task</span>
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </div>
                                 <span className={`inline-block px-2 py-1 rounded-full text-xs mt-1 ${getPriorityColor(task.priority)}`}>
                                   {task.priority}
                                 </span>

@@ -4,9 +4,9 @@ import { useState, useEffect } from "react"
 import { Header } from "@/components/header"
 import { TaskPool } from "@/components/task-pool"
 import { CreateSprintModal } from "@/components/create-sprint-modal"
-import { KanbanBoard } from "@/components/kanban-board"
+import KanbanBoard from "@/components/kanban-board"
 import { NotesSection } from "@/components/notes-section"
-import { Task, Sprint, Note } from "@/types"
+import { Task, Sprint, Note, SprintStatus } from "@/types"
 
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -35,8 +35,12 @@ export default function Home() {
     localStorage.setItem('notes', JSON.stringify(notes))
   }, [notes])
 
-  const handleAddTask = (newTask: Omit<Task, 'id'>) => {
-    const taskWithId = { ...newTask, id: Date.now().toString() }
+  const handleAddTask = (newTask: Omit<Task, 'id' | 'completed'>) => {
+    const taskWithId: Task = { 
+      ...newTask, 
+      id: Date.now().toString(),
+      completed: false
+    }
     setTasks((prevTasks) => [...prevTasks, taskWithId])
   }
 
@@ -63,7 +67,28 @@ export default function Home() {
     setSelectedTasks([])
   }
 
-  const handleUpdateSprint = (updatedSprint: Sprint) => {
+  const handleUpdateSprint = (sprintId: string, newTasks: Task[]) => {
+    setSprints((prevSprints) =>
+      prevSprints.map((sprint) =>
+        sprint.id === sprintId
+          ? {
+              ...sprint,
+              tasks: {
+                ...sprint.tasks,
+                Open: [...sprint.tasks.Open, ...newTasks],
+              },
+            }
+          : sprint
+      )
+    )
+    // Remove added tasks from the task pool
+    setTasks((prevTasks) => 
+      prevTasks.filter((task) => !newTasks.some((newTask) => newTask.id === task.id))
+    )
+    setSelectedTasks([])
+  }
+
+  const handleUpdateSprintStatus = (updatedSprint: Sprint) => {
     setSprints((prevSprints) =>
       prevSprints.map((sprint) =>
         sprint.id === updatedSprint.id ? updatedSprint : sprint
@@ -78,6 +103,56 @@ export default function Home() {
     if (deletedSprint) {
       const tasksToMove = Object.values(deletedSprint.tasks).flat()
       setTasks((prevTasks) => [...prevTasks, ...tasksToMove])
+    }
+  }
+
+  const handleSendTaskToPool = (taskId: string) => {
+    const taskToMove = sprints.flatMap(sprint =>
+      Object.values(sprint.tasks).flat()
+    ).find(task => task.id === taskId);
+
+    if (taskToMove) {
+      setTasks(prevTasks => [...prevTasks, taskToMove]);
+      setSprints(prevSprints =>
+        prevSprints.map(sprint => ({
+          ...sprint,
+          tasks: {
+            Open: sprint.tasks.Open.filter(task => task.id !== taskId),
+            "In Progress": sprint.tasks["In Progress"].filter(task => task.id !== taskId),
+            Done: sprint.tasks.Done.filter(task => task.id !== taskId)
+          },
+          status: calculateSprintStatus(sprint)
+        }))
+      );
+    }
+  }
+
+  const handleDeleteTaskFromSprint = (taskId: string) => {
+    setSprints(prevSprints =>
+      prevSprints.map(sprint => ({
+        ...sprint,
+        tasks: {
+          Open: sprint.tasks.Open.filter(task => task.id !== taskId),
+          "In Progress": sprint.tasks["In Progress"].filter(task => task.id !== taskId),
+          Done: sprint.tasks.Done.filter(task => task.id !== taskId)
+        },
+        status: calculateSprintStatus(sprint)
+      }))
+    );
+  }
+
+  const calculateSprintStatus = (sprint: Sprint): SprintStatus => {
+    const allTasks = Object.values(sprint.tasks).flat();
+    const allTasksDone = allTasks.every(task => sprint.tasks.Done.includes(task));
+    const currentDate = new Date();
+    const endDate = new Date(sprint.endDate);
+
+    if (allTasksDone) {
+      return 'Completed';
+    } else if (currentDate > endDate) {
+      return 'Out of Track';
+    } else {
+      return 'On Track';
     }
   }
 
@@ -113,20 +188,26 @@ export default function Home() {
               <CreateSprintModal
                 selectedTasks={tasks.filter((task) => selectedTasks.includes(task.id))}
                 onCreateSprint={handleCreateSprint}
+                onUpdateSprint={handleUpdateSprint}
+                existingSprints={sprints}
               />
             </div>
             <TaskPool
               tasks={tasks}
               selectedTasks={selectedTasks}
               onTaskSelect={handleTaskSelect}
+              onEditTask={() => {}} // Implement this function if needed
+              onDeleteTask={() => {}} // Implement this function if needed
             />
             <h2 className="text-2xl font-semibold text-gray-800 mt-8">Active Sprints</h2>
             {sprints.map((sprint) => (
               <KanbanBoard
                 key={sprint.id}
                 sprint={sprint}
-                onUpdateSprint={handleUpdateSprint}
+                onUpdateSprint={handleUpdateSprintStatus}
                 onDeleteSprint={handleDeleteSprint}
+                onSendTaskToPool={handleSendTaskToPool}
+                onDeleteTask={handleDeleteTaskFromSprint}
               />
             ))}
           </div>
