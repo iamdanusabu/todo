@@ -8,7 +8,7 @@ export type Task = {
   completed: boolean
 }
 
-export type SprintStatus = 'Completed' | 'On Track' | 'Out of Track'
+export type SprintStatus = 'Completed' | 'On Track' | 'On Track'
 
 export type Column = 'Open' | 'In Progress' | 'Done'
 

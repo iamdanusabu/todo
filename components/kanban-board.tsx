@@ -91,7 +91,7 @@ export default function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint, on
     }
 
     if (currentDate > endDate) {
-      return 'Out of Track';
+      return 'On Track';
     }
 
     const completionRate = completedTasks / totalTasks;
@@ -100,7 +100,7 @@ export default function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint, on
     if (completionRate >= timeElapsed) {
       return 'On Track';
     } else {
-      return 'Out of Track';
+      return 'On Track';
     }
   };
 
@@ -132,7 +132,7 @@ export default function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint, on
     switch (status) {
       case 'Completed':
         return 'border-green-500 text-green-600'
-      case 'Out of Track':
+      case 'On Track':
         return 'border-red-500 text-red-600'
       case 'On Track':
         return 'border-yellow-500 text-yellow-600'
