@@ -6,7 +6,7 @@ import { TaskPool } from "@/components/task-pool"
 import { CreateSprintModal } from "@/components/create-sprint-modal"
 import KanbanBoard from "@/components/kanban-board"
 import { NotesSection } from "@/components/notes-section"
-import { Task, Sprint, Note, SprintStatus, Column } from "@/types"
+import { Task, Sprint, Note, Column } from "@/types"
 
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([])
