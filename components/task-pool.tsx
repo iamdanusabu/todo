@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Table,
@@ -17,19 +18,25 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { MoreVertical, Pencil, Trash } from 'lucide-react'
-import { Task } from "@/types"
+import { Task, Priority } from "@/types"
 import { formatDistanceToNow } from "date-fns"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface TaskPoolProps {
   tasks: Task[]
   onTaskSelect: (taskId: string) => void
   selectedTasks: string[]
-  onEditTask: (task: Task) => void
+  onEditTask: (taskId: string, updatedTask: Partial<Task>) => void
   onDeleteTask: (taskId: string) => void
 }
 
 export function TaskPool({ tasks, onTaskSelect, selectedTasks, onEditTask, onDeleteTask }: TaskPoolProps) {
-  const getPriorityColor = (priority: Task["priority"]) => {
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+
+  const getPriorityColor = (priority: Priority) => {
     const colors = {
       Low: "bg-green-100 text-green-800",
       Medium: "bg-blue-100 text-blue-800",
@@ -38,6 +45,20 @@ export function TaskPool({ tasks, onTaskSelect, selectedTasks, onEditTask, onDel
       Critical: "bg-red-100 text-red-800",
     }
     return colors[priority]
+  }
+
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task)
+  }
+
+  const handleUpdateTask = () => {
+    if (editingTask) {
+      onEditTask(editingTask.id, {
+        description: editingTask.description,
+        priority: editingTask.priority
+      })
+      setEditingTask(null)
+    }
   }
 
   return (
@@ -77,7 +98,7 @@ export function TaskPool({ tasks, onTaskSelect, selectedTasks, onEditTask, onDel
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => onEditTask(task)}>
+                    <DropdownMenuItem onClick={() => handleEditTask(task)}>
                       <Pencil className="mr-2 h-4 w-4" />
                       <span>Edit</span>
                     </DropdownMenuItem>
@@ -92,6 +113,48 @@ export function TaskPool({ tasks, onTaskSelect, selectedTasks, onEditTask, onDel
           ))}
         </TableBody>
       </Table>
+      <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Task</DialogTitle>
+          </DialogHeader>
+          {editingTask && (
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="task-description">Description</Label>
+                <Input
+                  id="task-description"
+                  value={editingTask.description}
+                  onChange={(e) =>
+                    setEditingTask({ ...editingTask, description: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="task-priority">Priority</Label>
+                <Select
+                  value={editingTask.priority}
+                  onValueChange={(value: Priority) =>
+                    setEditingTask({ ...editingTask, priority: value })
+                  }
+                >
+                  <SelectTrigger id="task-priority">
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Very High">Very High</SelectItem>
+                    <SelectItem value="Critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleUpdateTask}>Update Task</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

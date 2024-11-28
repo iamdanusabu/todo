@@ -6,7 +6,7 @@ import { TaskPool } from "@/components/task-pool"
 import { CreateSprintModal } from "@/components/create-sprint-modal"
 import KanbanBoard from "@/components/kanban-board"
 import { NotesSection } from "@/components/notes-section"
-import { Task, Sprint, Note, SprintStatus } from "@/types"
+import { Task, Sprint, Note, SprintStatus, Column } from "@/types"
 
 export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([])
@@ -52,6 +52,19 @@ export default function Home() {
     )
   }
 
+  const handleEditTask = (taskId: string, updatedTask: Partial<Task>) => {
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, ...updatedTask } : task
+      )
+    )
+  }
+
+  const handleDeleteTask = (taskId: string) => {
+    setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId))
+    setSelectedTasks((prevSelected) => prevSelected.filter((id) => id !== taskId))
+  }
+
   const handleCreateSprint = (newSprint: Omit<Sprint, 'id' | 'status'>) => {
     const sprintWithId = {
       ...newSprint,
@@ -69,32 +82,28 @@ export default function Home() {
 
   const handleUpdateSprint = (sprintId: string, newTasks: Task[]) => {
     setSprints((prevSprints) =>
-      prevSprints.map((sprint) =>
-        sprint.id === sprintId
-          ? {
-              ...sprint,
-              tasks: {
-                ...sprint.tasks,
-                Open: [...sprint.tasks.Open, ...newTasks],
-              },
-            }
-          : sprint
-      )
-    )
+      prevSprints.map((sprint) => {
+        if (sprint.id === sprintId) {
+          return {
+            ...sprint,
+            tasks: {
+              ...sprint.tasks,
+              Open: [...sprint.tasks.Open, ...newTasks],
+            },
+          };
+        }
+        return sprint;
+      })
+    );
+
     // Remove added tasks from the task pool
     setTasks((prevTasks) => 
-      prevTasks.filter((task) => !newTasks.some((newTask) => newTask.id === task.id))
-    )
-    setSelectedTasks([])
-  }
+      prevTasks.filter((task) => !newTasks.some(newTask => newTask.id === task.id))
+    );
 
-  const handleUpdateSprintStatus = (updatedSprint: Sprint) => {
-    setSprints((prevSprints) =>
-      prevSprints.map((sprint) =>
-        sprint.id === updatedSprint.id ? updatedSprint : sprint
-      )
-    )
-  }
+    // Clear selected tasks
+    setSelectedTasks([]);
+  };
 
   const handleDeleteSprint = (sprintId: string) => {
     setSprints((prevSprints) => prevSprints.filter((sprint) => sprint.id !== sprintId))
@@ -107,69 +116,51 @@ export default function Home() {
   }
 
   const handleSendTaskToPool = (taskId: string) => {
-    const taskToMove = sprints.flatMap(sprint =>
-      Object.values(sprint.tasks).flat()
-    ).find(task => task.id === taskId);
+    let taskToMove: Task | undefined;
+    setSprints((prevSprints) =>
+      prevSprints.map((sprint) => {
+        const updatedSprint = { ...sprint };
+        (Object.keys(sprint.tasks) as Column[]).forEach((column) => {
+          const taskIndex = updatedSprint.tasks[column].findIndex((task) => task.id === taskId);
+          if (taskIndex !== -1) {
+            [taskToMove] = updatedSprint.tasks[column].splice(taskIndex, 1);
+          }
+        });
+        return updatedSprint;
+      })
+    );
 
     if (taskToMove) {
-      setTasks(prevTasks => [...prevTasks, taskToMove]);
-      setSprints(prevSprints =>
-        prevSprints.map(sprint => ({
-          ...sprint,
-          tasks: {
-            Open: sprint.tasks.Open.filter(task => task.id !== taskId),
-            "In Progress": sprint.tasks["In Progress"].filter(task => task.id !== taskId),
-            Done: sprint.tasks.Done.filter(task => task.id !== taskId)
-          },
-          status: calculateSprintStatus(sprint)
-        }))
-      );
+      setTasks((prevTasks) => [...prevTasks, taskToMove!]);
     }
   }
 
   const handleDeleteTaskFromSprint = (taskId: string) => {
-    setSprints(prevSprints =>
-      prevSprints.map(sprint => ({
+    setSprints((prevSprints) =>
+      prevSprints.map((sprint) => ({
         ...sprint,
-        tasks: {
-          Open: sprint.tasks.Open.filter(task => task.id !== taskId),
-          "In Progress": sprint.tasks["In Progress"].filter(task => task.id !== taskId),
-          Done: sprint.tasks.Done.filter(task => task.id !== taskId)
-        },
-        status: calculateSprintStatus(sprint)
+        tasks: Object.fromEntries(
+          Object.entries(sprint.tasks).map(([column, tasks]) => [
+            column,
+            tasks.filter((task) => task.id !== taskId),
+          ])
+        ) as Record<Column, Task[]>,
       }))
     );
-  }
-
-  const calculateSprintStatus = (sprint: Sprint): SprintStatus => {
-    const allTasks = Object.values(sprint.tasks).flat();
-    const allTasksDone = allTasks.every(task => sprint.tasks.Done.includes(task));
-    const currentDate = new Date();
-    const endDate = new Date(sprint.endDate);
-
-    if (allTasksDone) {
-      return 'Completed';
-    } else if (currentDate > endDate) {
-      return 'Out of Track';
-    } else {
-      return 'On Track';
-    }
   }
 
   const handleAddNote = (newNote: Omit<Note, 'id' | 'createdAt'>) => {
     const noteWithId = {
       ...newNote,
       id: Date.now().toString(),
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
     }
     setNotes((prevNotes) => [...prevNotes, noteWithId])
   }
 
   const handleEditNote = (id: string, updatedNote: Partial<Note>) => {
     setNotes((prevNotes) =>
-      prevNotes.map((note) =>
-        note.id === id ? { ...note, ...updatedNote } : note
-      )
+      prevNotes.map((note) => (note.id === id ? { ...note, ...updatedNote } : note))
     )
   }
 
@@ -196,15 +187,19 @@ export default function Home() {
               tasks={tasks}
               selectedTasks={selectedTasks}
               onTaskSelect={handleTaskSelect}
-              onEditTask={() => {}} // Implement this function if needed
-              onDeleteTask={() => {}} // Implement this function if needed
+              onEditTask={handleEditTask}
+              onDeleteTask={handleDeleteTask}
             />
             <h2 className="text-2xl font-semibold text-gray-800 mt-8">Active Sprints</h2>
             {sprints.map((sprint) => (
               <KanbanBoard
                 key={sprint.id}
                 sprint={sprint}
-                onUpdateSprint={handleUpdateSprintStatus}
+                onUpdateSprint={(updatedSprint) => {
+                  setSprints((prevSprints) =>
+                    prevSprints.map((s) => (s.id === updatedSprint.id ? updatedSprint : s))
+                  );
+                }}
                 onDeleteSprint={handleDeleteSprint}
                 onSendTaskToPool={handleSendTaskToPool}
                 onDeleteTask={handleDeleteTaskFromSprint}

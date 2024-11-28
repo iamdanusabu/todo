@@ -1,10 +1,18 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { MoreVertical, X, ArrowLeft, Trash } from 'lucide-react'
+import { Input } from "@/components/ui/input"
+import { MoreVertical, X, ArrowLeft, Trash, Pencil } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +21,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Sprint, Task, Column, SprintStatus } from "@/types"
+import { Sprint, Task, Column, SprintStatus, Priority } from "@/types"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface KanbanBoardProps {
   sprint: Sprint
@@ -25,6 +40,7 @@ interface KanbanBoardProps {
 
 export default function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint, onSendTaskToPool, onDeleteTask }: KanbanBoardProps) {
   const [isExpanded, setIsExpanded] = useState(true)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
 
   const onDragEnd = (result: DropResult) => {
     const { source, destination } = result
@@ -62,18 +78,32 @@ export default function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint, on
 
   const calculateSprintStatus = (sprint: Sprint): SprintStatus => {
     const allTasks = Object.values(sprint.tasks).flat();
-    const allTasksDone = allTasks.every(task => sprint.tasks.Done.includes(task));
+    const totalTasks = allTasks.length;
+    const completedTasks = sprint.tasks.Done.length;
     const currentDate = new Date();
     const endDate = new Date(sprint.endDate);
 
-    if (allTasksDone) {
-      return 'Completed';
-    } else if (currentDate > endDate) {
-      return 'Out of Track';
-    } else {
+    if (totalTasks === 0) {
       return 'On Track';
     }
-  }
+
+    if (completedTasks === totalTasks) {
+      return 'Completed';
+    }
+
+    if (currentDate > endDate) {
+      return 'Out of Track';
+    }
+
+    const completionRate = completedTasks / totalTasks;
+    const timeElapsed = (currentDate.getTime() - new Date(sprint.startDate).getTime()) / (endDate.getTime() - new Date(sprint.startDate).getTime());
+
+    if (completionRate >= timeElapsed) {
+      return 'On Track';
+    } else {
+      return 'Out of Track';
+    }
+  };
 
   const getColumnColor = (column: Column) => {
     switch (column) {
@@ -111,6 +141,33 @@ export default function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint, on
         return 'border-gray-500 text-gray-600'
     }
   }
+
+  const handleEditTask = (task: Task) => {
+    setEditingTask(task)
+  }
+
+  const handleUpdateTask = () => {
+    if (editingTask) {
+      const updatedSprint = {
+        ...sprint,
+        tasks: {
+          ...sprint.tasks,
+          [editingTask.completed ? 'Done' : 'Open']: sprint.tasks[editingTask.completed ? 'Done' : 'Open'].map(
+            (task) => (task.id === editingTask.id ? editingTask : task)
+          ),
+        },
+      }
+      onUpdateSprint(updatedSprint)
+      setEditingTask(null)
+    }
+  }
+
+  useEffect(() => {
+    const updatedStatus = calculateSprintStatus(sprint);
+    if (updatedStatus !== sprint.status) {
+      onUpdateSprint({ ...sprint, status: updatedStatus });
+    }
+  }, [sprint, onUpdateSprint]);
 
   return (
     <Card className="mb-6">
@@ -177,13 +234,17 @@ export default function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint, on
                                       </Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end">
+                                      <DropdownMenuItem onClick={() => handleEditTask(task)}>
+                                        <Pencil className="mr-2 h-4 w-4" />
+                                        <span>Edit</span>
+                                      </DropdownMenuItem>
                                       <DropdownMenuItem onClick={() => onSendTaskToPool(task.id)}>
                                         <ArrowLeft className="mr-2 h-4 w-4" />
                                         <span>Send to Task Pool</span>
                                       </DropdownMenuItem>
                                       <DropdownMenuItem onClick={() => onDeleteTask(task.id)}>
                                         <Trash className="mr-2 h-4 w-4" />
-                                        <span>Delete Task</span>
+                                        <span>Delete</span>
                                       </DropdownMenuItem>
                                     </DropdownMenuContent>
                                   </DropdownMenu>
@@ -205,6 +266,52 @@ export default function KanbanBoard({ sprint, onUpdateSprint, onDeleteSprint, on
           </DragDropContext>
         </CardContent>
       )}
+      <Dialog open={!!editingTask} onOpenChange={(open) => !open && setEditingTask(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Task</DialogTitle>
+          </DialogHeader>
+          {editingTask && (
+            <div className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <label htmlFor="task-description" className="text-sm font-medium">
+                  Description
+                </label>
+                <Input
+                  id="task-description"
+                  value={editingTask.description}
+                  onChange={(e) =>
+                    setEditingTask({ ...editingTask, description: e.target.value })
+                  }
+                />
+              </div>
+              <div className="space-y-2">
+                <label htmlFor="task-priority" className="text-sm font-medium">
+                  Priority
+                </label>
+                <Select
+                  value={editingTask.priority}
+                  onValueChange={(value: Priority) =>
+                    setEditingTask({ ...editingTask, priority: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Low">Low</SelectItem>
+                    <SelectItem value="Medium">Medium</SelectItem>
+                    <SelectItem value="High">High</SelectItem>
+                    <SelectItem value="Very High">Very High</SelectItem>
+                    <SelectItem value="Critical">Critical</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={handleUpdateTask}>Update Task</Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   )
 }
